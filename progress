@@ -1,0 +1,51 @@
+As doing project to make train recommendation system, our goal is to collect as much data of number of trains as
+possible, thus when user asks for the trains between stations we first of all need to have enough trains. Also there's
+need for a very high quality price and availability prediction model, so our system is not coupled with IRCTC.
+
+Initial research:
+
+Almost no good projects available in that area which work on train analysis. 2 good research papers found for
+forecasting ticket prices for spanish trains and for Indian trains, waitlist clearing prediction was one good project
+but couldn't establish connection with them for further details.
+
+Data collection
+
+OGD is a nice platform which might have some ready-made datasets available which would be helpful. Only 1 dataset we
+found for our use was the train_details data which contained 186000 entries with around 8000 unique stations which have
+at least one train stopping and around 10000 trains which are total of good trains and public trains. It is just like
+the schedule of all the trains. For each train, it's arrival and departure time at all the stations. This is 7 year old
+data and also bunch of goods trains combined which is useless.
+
+rapid-api is a public API for data retrieving but very costly and only 20 free requests. The possible requests were
+like: price and availability of one train between stations and on date, details of one train, details of one station and
+ many more. Best possible way to collect as much data as possible I found was: I used CHAT-GPT to list the most
+ important 20 stations in India. It gave me a list and what I got in return was for each station, I got list of all the
+ originating, passing and the station as final destination trains. This gave the total 2548 unique train numbers. More
+ could be found by using another account but leaving it for now.
+
+A github repository railway-master which have schedules have most important data json file. This gave 5248 unique trains
+ but this is also 7 years old data and thus less believable that all the train codes are valid which is what I verified
+ on IRCTC webpage as well that some trains were not valid. Also addition of many new Vande Bharat trains and other
+ trains are obviously not reflected here.
+
+We still couldn't found existing price data. Only one source rapid-api but that was also highly paid. The solution I
+found was web-scrapping the IRCTC website. I wrote programs that would replicate the HTTP requests that are sent from
+IRCTC frontend to backend. The requests I was able to see on my networks tab of web-console whenever I click some thing
+on the website. The process was very time consuming and difficult to manage but finally I was able to write multiple
+utility classes which I was able to use in my program and collect data. I wrote classes for getting trains in-between
+stations, retrieving train schedules, prices and availability. The real-time data collection which once was paid using
+rapid-api is now free using my program. IRCTC also doesn't have any defence against the attack.
+
+1> Getting schedules
+    Making requests to store schedules of as many public (not a goods train) trains as possible. Unique trains are
+    already collected using rapid-api and ogd. Finally figuring out the way to get all the possible train numbers and
+    their schedules. For all values from 10,000 to 99,000 we request IRCTC for schedule. Fortunately after diving
+    numbers into 5 equal ranges and running it for 5 files also divides the time exactly into 5 parts with just a little
+     bit of delay not much.
+2> Getting prices and avail
+    1> Using list of all trains between 2 stations, for all the trains randomly select a date and all classes for
+    trains, ask for price data
+        1> From the schedules data, get starting and ending stations
+        2> Randomly choose any 2 station from famous stations list
+    2> A train schedule contain station list for a given train, for all combination of stations ask for price which
+    would capture variability of price on distance change.

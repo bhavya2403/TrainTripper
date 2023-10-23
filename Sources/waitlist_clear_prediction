@@ -1,0 +1,10 @@
+https://github.com/ShubhangG/Train-Ticket-prediction
+
+"""
+Machine Learning Project where we predicted whether a customer will pass through a wait-list on IRCTC. Indian Railways
+ get a lot of bookings, so they run a wait-list on train tickets after all the seats have been booked. It's hard to
+ know as a customer whether you will get the ticket or not.
+"""
+
+Dataset: ,travelClass,bookingStatus,status1Day,status1Month,status1Week,status2Days,labels
+status1Week - status of the booking after one week
