@@ -72,20 +72,24 @@ for sch in schedules:
     if not idx%100:
         print(idx)
     for i in range(len(sch['stationList'])-1):
-        sourceStation = sch['stationList'][i]['stationCode']
-        dayCount1 = int(sch['stationList'][i]['dayCount'])
-        distance1 = int(sch['stationList'][i]['distance'])
-        try:
-            time1dt = datetime.datetime.strptime(sch['stationList'][i]['departureTime'], '%H:%M').time()
-        except:
+        stationJson = sch['stationList'][i]
+        if stationJson['departureTime'] == '--':
             continue
+        sourceStation = stationJson['stationCode']
+        dayCount1 = int(stationJson['dayCount'])
+        distance1 = int(stationJson['distance'])
+        routeNumber1 = int(stationJson['routeNumber'])
+        time1dt = datetime.datetime.strptime(stationJson['departureTime'], '%H:%M').time()
         for j in range(i+1, len(sch['stationList'])):
-            destinationStation = sch['stationList'][j]['stationCode']
-            dayCount2 = int(sch['stationList'][j]['dayCount'])
-            distance2=int(sch['stationList'][j]['distance'])
-            try:
-                time2dt = datetime.datetime.strptime(sch['stationList'][j]['arrivalTime'], '%H:%M').time()
-            except:
+            stationJsonj = sch['stationList'][j]
+            if stationJsonj['arrivalTime'] == '--':
+                continue
+            destinationStation = stationJsonj['stationCode']
+            dayCount2 = int(stationJsonj['dayCount'])
+            distance2=int(stationJsonj['distance'])
+            routeNumber2 = int(stationJsonj['routeNumber'])
+            time2dt = datetime.datetime.strptime(stationJsonj['arrivalTime'], '%H:%M').time()
+            if routeNumber1!=routeNumber2:
                 break
 
             diffInMinutes = (dayCount2-dayCount1)*1440 +\

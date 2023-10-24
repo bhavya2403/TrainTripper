@@ -40,3 +40,5 @@ create table nearbystations (
     foreign key (station1) references stations(station_code),
     foreign key (station2) references stations(station_code)
 );
+
+select * from nearbystations where distance = (select max(distance) from nearbystations);

@@ -40,8 +40,8 @@ rapid-api is now free using my program. IRCTC also doesn't have any defence agai
     Making requests to store schedules of as many public (not a goods train) trains as possible. Unique trains are
     already collected using rapid-api and ogd. Finally figuring out the way to get all the possible train numbers and
     their schedules. For all values from 10,000 to 99,000 we request IRCTC for schedule. Fortunately after diving
-    numbers into 5 equal ranges and running it for 5 files also divides the time exactly into 5 parts with just a little
-     bit of delay not much.
+    numbers into 10 equal ranges and running it for 10 files also divides the time exactly into 10 parts with just a
+    little bit of delay not much. Able to collect all trains data in around 1-2 hour run
 2> Getting prices and avail
     1> Using list of all trains between 2 stations, for all the trains randomly select a date and all classes for
     trains, ask for price data
@@ -49,3 +49,7 @@ rapid-api is now free using my program. IRCTC also doesn't have any defence agai
         2> Randomly choose any 2 station from famous stations list
     2> A train schedule contain station list for a given train, for all combination of stations ask for price which
     would capture variability of price on distance change.
+
+
+Search Algorithm:
+
