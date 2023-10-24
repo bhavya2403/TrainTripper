@@ -10,6 +10,10 @@ def trainsHaltingOn(stations):
     trains = pd.read_sql(f"select * from trainschedules where station_code in {tuple(stations)};", engine)
     return trains.drop(['route_number', 'halt_time_minutes'], axis=1)
 
+def getTrainSchedules(train_numbers):
+    schedules = pd.read_sql(f"select * from trainschedules where train_number in {tuple(train_numbers)}", engine)
+    return schedules.drop(['halt_time_minutes', 'route_number'], axis=1)
+
 def ifTrainDepOnDate(trainsDF, trainNumName, dateSeries: pd.Series):
     schedulesDF=pd.read_sql(f"select * from trains "
                             f"where train_number in {tuple(trainsDF[trainNumName].to_list())}", engine)
@@ -18,15 +22,15 @@ def ifTrainDepOnDate(trainsDF, trainNumName, dateSeries: pd.Series):
     daySeries = dateSeries.apply(lambda dt: dt.strftime('%A')[:3].lower())
     return trainsWithDaysDF.apply(lambda row: row[f'trainrunson{daySeries[row.name]}'], axis=1)
 
+def getNearby(station):
+    return pd.read_sql(f"select station2, distance from nearbystations where station1='{station}';", engine)
+
 def ifTrainRunsOnDaycDate(trainsDF, trainNumName, dayCountName, dt: (date, pd.Series)):
     dtConv = dt
     if type(dt)==date:
         dtConv = pd.Series([dt]*len(trainsDF))
     reqDepDateSeries = trainsDF.apply(lambda row: dtConv[row.name]-timedelta(row[dayCountName]-1), axis=1)
     return ifTrainDepOnDate(trainsDF, trainNumName, reqDepDateSeries)
-
-def getNearby(station):
-    return pd.read_sql(f"select station2, distance from nearbystations where station1='{station}';", engine)
 
 def filterBestNearForTrain(trainsDF, station):
     nearbyStationDist = getNearby(station)
@@ -57,10 +61,7 @@ def multiTrainItinaries(sourceStation, destinationStation, dt):
     departingTrains=trainsHaltingOn(getNearby(sourceStation).station2.to_list())
     departingOnDateTrains = departingTrains[ifTrainRunsOnDaycDate(departingTrains, 'train_number', 'day_count', dt)]
     bestDepartingOnDateTrains = filterBestNearForTrain(departingOnDateTrains, sourceStation)
-    # create a column with next halting stops along with their time
-    departingTrainSchedules = pd.read_sql(f"select * from trainschedules where train_number in "
-                                          f"{tuple(bestDepartingOnDateTrains.train_number.to_list())}", engine)
-    departingTrainSchedules.drop(['halt_time_minutes', 'route_number'], axis=1, inplace=True)
+    departingTrainSchedules = getTrainSchedules(bestDepartingOnDateTrains.train_number.to_list())
     stationPairsDF = bestDepartingOnDateTrains.merge(departingTrainSchedules, 'right', 'train_number')
     departingHaltingPairs = stationPairsDF[(stationPairsDF.day_count_y>stationPairsDF.day_count_x) |
                    (
@@ -72,9 +73,7 @@ def multiTrainItinaries(sourceStation, destinationStation, dt):
 
     arrivingTrains=trainsHaltingOn(getNearby(destinationStation).station2.to_list())
     bestArrivingTrains = filterBestNearForTrain(arrivingTrains, destinationStation)
-    arrivingTrainSchedules = pd.read_sql(f"select * from trainschedules where train_number in "
-                                          f"{tuple(bestArrivingTrains.train_number.to_list())}", engine)
-    arrivingTrainSchedules.drop(['halt_time_minutes', 'route_number'], axis=1, inplace=True)
+    arrivingTrainSchedules = getTrainSchedules(bestArrivingTrains.train_number.to_list())
     stationPairsDF = bestArrivingTrains.merge(arrivingTrainSchedules, 'right', 'train_number')
     haltingArrivingPairs = stationPairsDF[(stationPairsDF.day_count_y < stationPairsDF.day_count_x) |
                                           (
@@ -85,6 +84,11 @@ def multiTrainItinaries(sourceStation, destinationStation, dt):
     allComb = departingHaltingPairs.merge(haltingArrivingPairs, 'inner', 'station_code_y')
     allComb = allComb[allComb.train_number_x!=allComb.train_number_y]
     allComb.reset_index(inplace=True)
+    # find the arrival date and time on halting station.
+        # x_x -  source station train1
+        # y_x -  halt station train1
+        # x_y -  destination station train2
+        # y_y -  halt station train2
 
     train2OnDateOnHalt = ifTrainRunsOnDaycDate(allComb, 'train_number_y', 'day_count_y_y', allComb['halt_arrival']) \
                          & (allComb.departure_time_y_y > allComb.arrival_time_y_x)
@@ -107,12 +111,6 @@ def multiTrainItinaries(sourceStation, destinationStation, dt):
              datetime.combine(dt, row['departure_time_x_x'])).total_seconds()/60, axis=1)
 
     return lessLayoverTrains.sort_values('journey_time_minutes').head(100)
-
-    # find the arrival date and time on halting station.
-        # x_x -  source station train1
-        # y_x -  halt station train1
-        # x_y -  destination station train2
-        # y_y -  halt station train2
 
 def main():
     sourceStation = 'CAPE'
