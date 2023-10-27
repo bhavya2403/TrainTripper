@@ -25,3 +25,10 @@ FROM trainschedules
 where station_code='MMCT';
 
 select train_number, max(route_number) r from trainschedules group by train_number order by r desc;
+
+select * from trainschedules where station_code in ('ADI', 'SBIB', 'SAU', 'ND');
+
+delete from nearbystations
+where distance > 30;
+
+select count(*) from nearbystations;

@@ -94,7 +94,7 @@ for sch in schedules:
 
             diffInMinutes = (dayCount2-dayCount1)*1440 +\
                             (time2dt.hour-time1dt.hour)*60 + (time2dt.minute-time1dt.minute)
-            if diffInMinutes > 60:
+            if diffInMinutes > 60 or distance2-distance1>30:
                 break
             engine.execute(f"insert into nearbystations values ('{sourceStation}', '{destinationStation}', "
                            f"{distance2-distance1});")

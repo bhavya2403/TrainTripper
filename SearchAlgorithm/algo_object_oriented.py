@@ -89,24 +89,20 @@ class TrainTripPlanner:
         trains_with_station_dist.drop_duplicates(subset='train_number', inplace=True)
         return trains_with_station_dist.drop(['station2', 'distance_y'], axis=1)
 
-    def _get_departing_trains(self, source_station, dt):
-        nearby_stations = self.db.fetch_nearby_stations(source_station).station2.to_list()
-        departing_trains = self.db.trains_halting_on(nearby_stations)
-        departing_on_date_trains = departing_trains[
-            self._if_train_runs_on_dayc_date(departing_trains, 'train_number', 'day_count', dt)]
-        return self._filter_best_near_for_train(departing_on_date_trains, source_station)
-
-    def _get_arriving_trains(self, destination_station):
-        nearby_stations = self.db.fetch_nearby_stations(destination_station).station2.to_list()
-        arriving_trains = self.db.trains_halting_on(nearby_stations)
-        return self._filter_best_near_for_train(arriving_trains, destination_station)
+    def _trains_halting_on_nearby(self, station_code, dt=None):
+        nearby_stations = self.db.fetch_nearby_stations(station_code).station2.to_list()
+        trains_halting = self.db.trains_halting_on(nearby_stations)
+        if dt:
+            trains_halting = trains_halting[
+                self._if_train_runs_on_dayc_date(trains_halting, 'train_number', 'day_count', dt)]
+        return self._filter_best_near_for_train(trains_halting, station_code)
 
     def trains_on_date_running_nearby(self, source_station, destination_station, dt):
         if not self.check_query_fairness(source_station, destination_station, dt):
             return pd.DataFrame()
-        best_departing_on_date_trains = self._get_departing_trains(source_station, dt)
-        best_arriving_trains = self._get_arriving_trains(destination_station)
-        common = best_departing_on_date_trains.merge(best_arriving_trains, 'inner', 'train_number')
+        best_halting_on_date_source = self._trains_halting_on_nearby(source_station, dt)
+        best_halting_dest = self._trains_halting_on_nearby(destination_station)
+        common = best_halting_on_date_source.merge(best_halting_dest, 'inner', 'train_number')
         only_source_to_dest = common[common.distance_x_x < common.distance_x_y]
         return only_source_to_dest
 
@@ -134,8 +130,8 @@ class TrainTripPlanner:
                                         (station_pairs_df.arrival_time_x > station_pairs_df.departure_time_y)
                                 )]
 
-    def _filter_direct(self, trains_df, direct_train_numbers):
-        indirect_trains = trains_df[~trains_df.train_number.isin(direct_train_numbers)]
+    def _filter_direct(self, indirect_trains):
+        indirect_trains = indirect_trains[indirect_trains.train_number_x != indirect_trains.train_number_y]
         return indirect_trains.reset_index(drop=True)
 
     def __add_halt_dep_filter_gt1day_layover(self, indirect_trains):
@@ -172,19 +168,16 @@ class TrainTripPlanner:
     def multi_train_itineraries(self, source_station, destination_station, dt):
         if not self.check_query_fairness(source_station, destination_station, dt):
             return pd.DataFrame()
-        direct_train_numbers = self.trains_on_date_running_nearby(source_station, destination_station, dt)\
-                                .train_number.to_list()
 
-        best_departing_on_date_trains = self._get_departing_trains(source_station, dt)
-        departing_on_date_indirect = self._filter_direct(best_departing_on_date_trains, direct_train_numbers)
-        departing_halting_pairs = self._add_next_stops(departing_on_date_indirect)
+        best_halting_on_date_source = self._trains_halting_on_nearby(source_station, dt)
+        departing_halting_pairs = self._add_next_stops(best_halting_on_date_source)
 
-        best_arriving_trains = self._get_arriving_trains(destination_station)
-        arriving_indirect = self._filter_direct(best_arriving_trains, direct_train_numbers)
-        halting_arriving_pairs = self._add_previous_stops(arriving_indirect)
+        best_halting_dest = self._trains_halting_on_nearby(destination_station)
+        halting_arriving_pairs = self._add_previous_stops(best_halting_dest)
 
         indirect_trains = departing_halting_pairs.merge(halting_arriving_pairs, 'inner', 'station_code_y')
 
+        indirect_trains = self._filter_direct(indirect_trains)
         indirect_trains = self._add_halt_details(indirect_trains, dt)
         indirect_trains = self._filter_best_itinerary_for_train_pair(indirect_trains)
         indirect_trains = self._add_more_travel_info(indirect_trains, dt)
@@ -192,8 +185,8 @@ class TrainTripPlanner:
 
 def main():
     source_station = 'MMCT'
-    destination_station = 'NDLS'
-    dt = date(2023, 10, 26)
+    destination_station = 'ASR'
+    dt = date(2023, 10, 27)
 
     # Initialize the TrainTripPlanner with your database URL
     database_url = "postgresql://postgres:%s@localhost:5432/traintripper" % quote_plus(config("POSTGRES_PASSWORD"))
@@ -203,6 +196,7 @@ def main():
     df = planner.trains_on_date_running_nearby(source_station, destination_station, dt)
     df1 = planner.trains_on_date_running_between(source_station, destination_station, dt)
     df2 = planner.multi_train_itineraries(source_station, destination_station, dt)
+    print(df2)
 
 if __name__ == "__main__":
     main()
