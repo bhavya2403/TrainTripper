@@ -1,3 +1,5 @@
 .env
 .idea
 .DS_Store
+Data/irctc/static_coverage.json
+Data/irctc/static_coverage.csv

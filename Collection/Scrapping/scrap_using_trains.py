@@ -13,7 +13,7 @@ schedulesStr = schedule_file.readlines()
 schedules = list(map(json.loads, schedulesStr))
 
 # -----------------------------------------------------------------------------------
-# Aim is to use each train schedule to collect data, price dependence on distance change
+# Aim is to use each train schedule to collect data, static data collection. independent of date change
 
 file_number = 11
 queriesFile = open(f"./Data/irctc/queries{file_number}.json", 'a')
