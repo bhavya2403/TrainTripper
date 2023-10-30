@@ -1,4 +1,4 @@
-train number,train name,basefare,reservationCharge,superfastCharge,dynamicFare,cateringCharge,fuelAmount,totalConcession,tatkalFare,serviceTax,otherCharge,distance,total_minutes,totalFare,1A,2A,2S,3A,3E,CC,SL
+train_number,train_name,basefare,reservationCharge,superfastCharge,dynamicFare,cateringCharge,fuelAmount,totalConcession,tatkalFare,serviceTax,otherCharge,distance,total_minutes,totalFare,1A,2A,2S,3A,3E,CC,SL
 22954,GUJARAT SF EXP,215,40,45,0,0,0.0,0,0,15.0,0,100,99,315,False,False,False,False,False,True,False
 22954,GUJARAT SF EXP,50,15,15,0,0,0.0,0,0,0.0,0,100,99,80,False,False,True,False,False,False,False
 22956,KUTCH EXPRESS,1060,60,75,0,0,0.0,0,0,60.0,0,100,110,1255,True,False,False,False,False,False,False
