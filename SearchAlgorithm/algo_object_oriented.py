@@ -1,5 +1,5 @@
 import numpy as np
-from datetime import date, timedelta, datetime
+from datetime import date
 import pandas as pd
 from sqlalchemy import create_engine
 from urllib.parse import quote_plus
@@ -109,37 +109,41 @@ class TrainTripPlanner:
                                         (station_pairs_df.arrival_time_x > station_pairs_df.departure_time_y)
                                 )]
 
-    def __add_halt_dep_filter_gt1day_layover(self, indirect_trains):
-        train2_on_date_on_halt = self._if_train_runs_on_dayc_date(indirect_trains, 'train_number_y', 'day_count_y_y',
-            indirect_trains['halt_arrival']) & (indirect_trains.departure_time_y_y > indirect_trains.arrival_time_y_x)
-        train2_on_next_date_halt = self._if_train_runs_on_dayc_date(indirect_trains, 'train_number_y', 'day_count_y_y',
-            indirect_trains['halt_arrival'] + pd.Timedelta(days=1))
-        indirect_trains['halt_departure'] = np.where(train2_on_date_on_halt, indirect_trains['halt_arrival'],
-                                                     indirect_trains['halt_arrival'] + pd.Timedelta(days=1))
-        return indirect_trains[train2_on_date_on_halt | train2_on_next_date_halt]
+    def __add_halt_dep_filter_gt1day_layover(self, trains_df):
+        train2_on_date_on_halt = self._if_train_runs_on_dayc_date(trains_df, 'train_number_y', 'day_count_y_y',
+            trains_df['halt_arrival']) & (trains_df.departure_time_y_y > trains_df.arrival_time_y_x)
+        train2_on_next_date_halt = self._if_train_runs_on_dayc_date(trains_df, 'train_number_y', 'day_count_y_y',
+            trains_df['halt_arrival'] + pd.Timedelta(days=1))
+        trains_df['halt_departure'] = np.where(train2_on_date_on_halt, trains_df['halt_arrival'],
+                                                     trains_df['halt_arrival'] + pd.Timedelta(days=1))
+        return trains_df[train2_on_date_on_halt | train2_on_next_date_halt].reset_index(drop=True)
 
-    def _add_halt_details(self, indirect_trains, dt):
-        indirect_trains['halt_arrival'] = pd.to_datetime(dt) + \
-            pd.to_timedelta(indirect_trains['day_count_y_x'] - indirect_trains['day_count_x_x'], unit='D')
-        indirect_trains = self.__add_halt_dep_filter_gt1day_layover(indirect_trains)
-        indirect_trains['halt_time_minutes'] = (
-            pd.to_datetime(indirect_trains['halt_departure'])+pd.to_timedelta(indirect_trains['departure_time_y_y'].astype(str))-
-            pd.to_datetime(indirect_trains['halt_arrival'])+pd.to_timedelta(indirect_trains['arrival_time_y_x'].astype(str))
+    def _add_halt_details(self, trains_df, dt):
+        trains_df['halt_arrival'] = pd.to_datetime(pd.Series([dt]*len(trains_df))) + \
+            pd.to_timedelta(trains_df['day_count_y_x'] - trains_df['day_count_x_x'], unit='D')
+        trains_df = self.__add_halt_dep_filter_gt1day_layover(trains_df)
+        trains_df['halt_time_minutes'] = (
+            (pd.to_datetime(trains_df['halt_departure']) +
+                pd.to_timedelta(trains_df['departure_time_y_y'].astype(str))) -
+            (pd.to_datetime(trains_df['halt_arrival']) +
+                pd.to_timedelta(trains_df['arrival_time_y_x'].astype(str)))
         ).dt.total_seconds() / 60
+        return trains_df
 
-        return indirect_trains
+    def _filter_best_itinerary_for_train_pair(self, trains_df):
+        trains_df.sort_values('halt_time_minutes', ascending=False, inplace=True)
+        return trains_df.drop_duplicates(subset=['train_number_x', 'train_number_y']).reset_index(drop=True)
 
-    def _filter_best_itinerary_for_train_pair(self, indirect_trains):
-        indirect_trains.sort_values('halt_time_minutes', ascending=False, inplace=True)
-        return indirect_trains.drop_duplicates(subset=['train_number_x', 'train_number_y'])
-
-    def _add_more_travel_info(self, indirect_trains, dt):
-        indirect_trains['reach_date'] = indirect_trains.apply(lambda row:
-            row['halt_departure'] + timedelta(row['day_count_x_y'] - row['day_count_y_y']), axis=1)
-        indirect_trains['journey_time_minutes'] = indirect_trains.apply(lambda row:
-            (datetime.combine(row['reach_date'], row['arrival_time_x_y']) -
-             datetime.combine(dt, row['departure_time_x_x'])).total_seconds() / 60, axis=1)
-        return indirect_trains
+    def _add_more_travel_info(self, trains_df, dt):
+        trains_df['reach_date'] = pd.to_datetime(trains_df['halt_departure']) + \
+            pd.to_timedelta(trains_df['day_count_x_y'] - trains_df['day_count_y_y'], unit='D')
+        trains_df['journey_time_minutes'] = (
+            (pd.to_datetime(trains_df['reach_date']) +
+                pd.to_timedelta(trains_df['arrival_time_x_y'].astype(str))) -
+            (pd.to_datetime(pd.Series([dt]*len(trains_df))) +
+                pd.to_timedelta(trains_df['departure_time_x_x'].astype(str)))
+        ).dt.total_seconds() / 60
+        return trains_df
 
     def multi_train_itineraries(self, source_station, destination_station, dt):
         best_halting_on_date_source = self._trains_halting_on_nearby(source_station, dt)
