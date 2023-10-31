@@ -8,7 +8,7 @@ dynamic_pricing_trains = ['12298', '12283', '12278', '12297', '20840', '12269', 
                         '12294', '12293', '12290', '12284', '12302', '12289', '12270', '12314', '12286', '12313',
                           '12281', '12301', '12285', '20839', '12309', '12305']
 
-lines = open("../../Data/irctc/schedules.json").readlines()
+lines = open("./Data/irctc/schedules.json").readlines()
 schedules = list(map(json.loads, lines))
 train_numbers = list(map(lambda sch: sch['trainNumber'], schedules))
 static_pricing_trains = list(set(train_numbers)-set(dynamic_pricing_trains))
@@ -23,7 +23,7 @@ n = 300
 irctcClient = IRCTCClient()
 fareInquiryClient = TrainPriceAndAvailClient(irctcClient)
 
-file_number = 1
+file_number = 5
 queriesFile = open(f"./Data/irctc/queries{file_number}.json", 'a')
 classCodes = ['1A', '2A', '3A', 'SL', '2S', 'CC']
 start = time()
