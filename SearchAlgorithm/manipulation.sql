@@ -32,3 +32,5 @@ delete from nearbystations
 where distance > 30;
 
 select count(*) from nearbystations;
+
+select distinct train_number from trainschedules where route_number>1;
