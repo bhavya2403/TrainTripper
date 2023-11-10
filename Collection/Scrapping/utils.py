@@ -2,16 +2,17 @@ import requests
 
 class IRCTCClient:
     HEADERS = {
-            "sec-ch-ua": '"Microsoft Edge";v="117", "Not;A=Brand";v="8", "Chromium";v="117"',
-            "sec-ch-ua-mobile": "?0",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 Edg/117.0.2045.31",
-            "Content-Type": "application/json; charset=UTF-8",
-            "Content-Language": "en",
-            "Accept": "application/json, text/plain, */*",
-            "bmirak": "webbm",
-            "sec-ch-ua-platform": '"Windows"',
-            "greq": "1695662665522",
-            "bmiyek": "2482A1E7A31DD4535864E31966B58B93"
+        "sec-ch-ua": '"Microsoft Edge";v="119", "Chromium";v="119", "Not?A_Brand";v="24"',
+        "sec-ch-ua-mobile": "?0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0",
+        "greq": "1699379359431",
+        "Content-Type": "application/json; charset=UTF-8",
+        "Content-Language": "en",
+        "Accept": "application/json, text/plain, */*",
+        "bmirak": "webbm",
+        "Referer": "https://www.irctc.co.in/nget/booking/train-list",
+        "bmiyek": "2482A1E7A31DD4535864E31966B58B93",
+        "sec-ch-ua-platform": '"Windows"'
     }
 
     def send_post_request(self, url, data):

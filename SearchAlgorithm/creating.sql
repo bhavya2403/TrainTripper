@@ -23,7 +23,10 @@ create table trains (
     trainRunsOnSun boolean
 );
 alter table trains add primary key (train_number);
-create index on trainschedules(station_code);
+
+create index index_trains_tn on trains(train_number);
+create index index_trainschedules_tn on trainschedules(train_number);
+create index index_trainschedules_sc on trainschedules(station_code);
 
 create table stations (
     station_code varchar(10) primary key,

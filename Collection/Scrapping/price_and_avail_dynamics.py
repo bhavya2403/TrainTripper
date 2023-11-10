@@ -18,56 +18,36 @@ query_train_numbers = static_pricing_trains[:(300-len(dynamic_pricing_trains))]+
 shuffle(query_train_numbers)
 
 query_schedules = list(filter(lambda sch: sch['trainNumber'] in query_train_numbers, schedules))
-n = 300
+n = len(schedules)
 
 irctcClient = IRCTCClient()
 fareInquiryClient = TrainPriceAndAvailClient(irctcClient)
 
-file_number = 5
-queriesFile = open(f"./Data/irctc/queries{file_number}.json", 'a')
+file_number = 4
+# queriesFile = open(f"./Data/irctc/queries{file_number}.json", 'a')
 classCodes = ['1A', '2A', '3A', 'SL', '2S', 'CC']
 start = time()
-for i, schedule in enumerate(query_schedules[(file_number-1)*60:file_number*60]):
+trainClasses = {}
+for i, schedule in enumerate(schedules[3290:3291]):
     end=time()
     print(f"\rPercentage done: {round(i/n * 100, 2)}%, "
           f"time taken: {int(end-start)}s, time left: "
-          f"{int((n-i-1)*(end-start)/(i+1))}s")
+          f"{int((n-i-1)*(end-start)/(i+1))}s", end='')
 
-    timestamp = datetime.now()
-    startDate = timestamp.date() + timedelta(5)
-    trainDepDates = []
+    startDate = datetime.now().date() + timedelta(5)
+    trainDepDate = None
     dateDiff = 0
-    while len(trainDepDates)<200:
+    while not trainDepDate:
         date = startDate + timedelta(dateDiff)
         if schedule[f'trainRunsOn{date.strftime("%A")[:3]}']=='Y':
-            trainDepDates.append(date.strftime("%Y%m%d"))
+            trainDepDate = date.strftime("%Y%m%d")
         dateDiff += 1
 
-    allComb = []
-    for i in range(len(schedule['stationList'])):
-        for j in range(i+1, len(schedule['stationList'])):
-            allComb.append((schedule['stationList'][i]['stationCode'], schedule['stationList'][j]['stationCode']))
-    shuffle(allComb)
-
-    for source_station, dest_station in allComb[:min(10, len(allComb))]:
-        for classCode in classCodes:
-            availArr = []
-            while len(availArr)<200:
-                dateStr = trainDepDates[len(availArr)]
-                response = fareInquiryClient.get(schedule['trainNumber'], dateStr,
-                                                 source_station, dest_station, classCode)
-                print(f"\rInquired for "
-                      f"{schedule['trainName']}, {dateStr}, {source_station}, {dest_station}, {classCode}, "
-                      f"response: {response['errorMessage'][:-1] if 'errorMessage' in response else 'YES'}", end='')
-                if 'errorMessage' in response:
-                    break
-                availArr += response['availability']
-                response['trainNumber'] = schedule['trainNumber']
-                response['fromStnCode'] = source_station
-                response['toStnCode'] = dest_station
-                response['classCode'] = classCode
-                response['timeStamp'] = f'{timestamp}'
-                json.dump(response, queriesFile)
-                queriesFile.write("\n")
-
-queriesFile.close()
+    source_station = schedule['stationList'][0]['stationCode']
+    dest_station = schedule['stationList'][-1]['stationCode']
+    trainClasses[schedule['trainNumber']] = []
+    for classCode in classCodes:
+        response = fareInquiryClient.get(schedule['trainNumber'], trainDepDate,
+                                         source_station, dest_station, classCode)
+        if 'errorMessage' not in response:
+            trainClasses[schedule['trainNumber']].append(classCode)

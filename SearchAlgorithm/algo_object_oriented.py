@@ -60,7 +60,7 @@ class TrainDatabase:
             print(f"Error fetching stations table: {e}")
             return None
 
-class TrainTripPlanner:
+class TrainsFinder:
     def __init__(self, database_url):
         self.db = TrainDatabase(database_url)
 
@@ -69,7 +69,8 @@ class TrainTripPlanner:
         schedules_df.drop(['station_from', 'station_to'], axis=1, inplace=True)
         trains_with_days_df = trains_df.merge(schedules_df, 'left', left_on=train_num_name, right_on='train_number')
         day_series = pd.to_datetime(date_series).dt.strftime('%A').str[:3].str.lower()
-        return trains_with_days_df.lookup(trains_df.index, 'trainrunson'+day_series)
+        return trains_with_days_df.to_numpy()[trains_with_days_df.index.get_indexer(trains_with_days_df.index),
+            trains_with_days_df.columns.get_indexer('trainrunson'+day_series)]
 
     def _if_train_runs_on_dayc_date(self, trains_df, train_num_name, day_count_name, dt):
         dt_conv = dt if isinstance(dt, pd.Series) else pd.Series([dt] * len(trains_df))
@@ -145,6 +146,37 @@ class TrainTripPlanner:
         ).dt.total_seconds() / 60
         return trains_df
 
+    def format_time_columns(self, trains_df, dep_date):
+        trains_df.reset_index(drop=True, inplace=True)
+        trains_df['fromArrival']=pd.to_datetime(pd.Series([dep_date] * len(trains_df))) + \
+                                 pd.to_timedelta(trains_df.arrival_time_x_x.astype(str), errors='coerce')
+        trains_df['fromDeparture']=pd.to_datetime(pd.Series([dep_date] * len(trains_df))) + \
+                                   pd.to_timedelta(trains_df.departure_time_x_x.astype(str))
+        trains_df['haltArrival'] = pd.to_datetime(trains_df.halt_arrival) + \
+                                   pd.to_timedelta(trains_df.arrival_time_y_x.astype(str))
+        trains_df['haltDeparture']=pd.to_datetime(trains_df.halt_departure) + \
+                                 pd.to_timedelta(trains_df.departure_time_y_y.astype(str))
+        trains_df['toArrival']=pd.to_datetime(trains_df['reach_date']) + \
+                               pd.to_timedelta(trains_df.arrival_time_y_x.astype(str))
+        trains_df['toDeparture']=pd.to_datetime(trains_df.reach_date) + \
+                                 pd.to_timedelta(trains_df.departure_time_y_x.astype(str), errors='coerce')
+        return trains_df
+
+    def format_direct(self, direct_trains, dep_date):
+        direct_trains = self.format_time_columns(direct_trains, dep_date)
+        direct_trains.rename({'station_code_x_x': 'fromStnCode', 'train_number_x': 'trainNumber',
+                              'station_code_x_y': 'toStnCode'}, axis=1, inplace=True)
+        return direct_trains[['fromStnCode', 'fromArrival', 'fromDeparture', 'trainNumber', 'toStnCode',
+                              'toArrival', 'toDeparture', 'journey_time_minutes']].head(100)
+
+    def format_indirect(self, indirect_trains, dep_date):
+        indirect_trains = self.format_time_columns(indirect_trains, dep_date)
+        indirect_trains.rename({'station_code_x_x': 'fromStnCode', 'train_number_x': 'trainNumber1', 'train_number_y':
+            'trainNumber2', 'station_code_y': 'haltStation', 'station_code_x_y': 'toStnCode'}, axis=1, inplace=True)
+        return indirect_trains[['fromStnCode', 'fromArrival', 'fromDeparture', 'trainNumber1', 'haltStation',
+                                'haltArrival', 'trainNumber2', 'haltDeparture', 'halt_time_minutes', 'toStnCode',
+                                'toArrival', 'toDeparture', 'journey_time_minutes']].head(100)
+
     def multi_train_itineraries(self, source_station, destination_station, dt):
         best_halting_on_date_source = self._trains_halting_on_nearby(source_station, dt)
         departing_halting_pairs = self._add_next_stops(best_halting_on_date_source)
@@ -161,16 +193,16 @@ class TrainTripPlanner:
 
         direct_trains = trains_df[trains_df.train_number_x == trains_df.train_number_y]
         indirect_trains = trains_df[trains_df.train_number_x != trains_df.train_number_y]
-        return [direct_trains.head(100), indirect_trains.head(100)]
+        return (self.format_direct(direct_trains, dt), self.format_indirect(indirect_trains, dt))
 
 def main():
     source_station = 'MMCT'
     destination_station = 'NDLS'
-    dt = date(2023, 10, 30)
+    dt = date(2023, 11, 9)
 
-    # Initialize the TrainTripPlanner with your database URL
+    # Initialize the TrainsFinder with your database URL
     database_url = "postgresql://postgres:%s@localhost:5432/traintripper" % quote_plus(config("POSTGRES_PASSWORD"))
-    planner = TrainTripPlanner(database_url)
+    planner = TrainsFinder(database_url)
     direct_trains, indirect_trains = planner.multi_train_itineraries(source_station, destination_station, dt)
 
 if __name__ == "__main__":

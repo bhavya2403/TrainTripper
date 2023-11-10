@@ -3,3 +3,5 @@
 .DS_Store
 Data/irctc/dynamic_coverage.csv
 Data/irctc/static_coverage.csv
+Data/precomputes
+Data/processed_data
