@@ -2,16 +2,14 @@ import json
 import joblib
 import datetime
 import pandas as pd
-from urllib.parse import quote_plus
-from decouple import config
 from SearchAlgorithm.algo_object_oriented import TrainsFinder
 
 base_path = "."
 class_preference = ['SL', '3A', '2A', '1A', '2S', 'CC']
 
 class TripPlannerWithPrices:
-    def __init__(self, database_url, price_model_name):
-        self.train_finder = TrainsFinder(database_url)
+    def __init__(self, price_model_name):
+        self.train_finder = TrainsFinder()
         self.model = joblib.load(f"{base_path}/Modelling/trained_models/{price_model_name}.pkl")
         self.distance_map: dict
         self.catering_trains: list
@@ -145,8 +143,5 @@ class TripPlannerWithPrices:
         indirect_trains= self.set_pref_price_indirect(self.set_prices_indirect(indirect_trains, predictions))
         return direct_trains, indirect_trains
 
-planner = TripPlannerWithPrices(
-    "postgresql://postgres:%s@localhost:5432/traintripper" % quote_plus(config("POSTGRES_PASSWORD")),
-    "decision_tree_regression_balanced_price"
-)
+planner = TripPlannerWithPrices("decision_tree_regression_balanced_price")
 direct_trains, indirect_trains = planner.query("MMCT", "NDLS", datetime.date(2023, 11, 15))

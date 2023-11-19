@@ -47,9 +47,143 @@ rapid-api is now free using my program. IRCTC also doesn't have any defence agai
     trains, ask for price data
         1> From the schedules data, get starting and ending stations
         2> Randomly choose any 2 station from famous stations list
-    2> A train schedule contain station list for a given train, for all combination of stations ask for price which
-    would capture variability of price on distance change.
+        (was getting really narrow data and took a lot of time to collect)
+    2> A train schedule contain station list for a given train, for some combination of stations ask for price which
+    would capture variability of price on distance change. Some trains had dynamic pricing and for all of those trains,
+    for some combination of stations and for all of the available dates to get price, collect price and availability to
+    store it as dynamic data.
 
+Database Creation: (important step because the data is to be used for further steps)
+    - Only the schedules data is used to create the database as it contain all the information for station and trains.
+    Prices data is to be used for modelling.
+    - trains table: train_number, train_name, source station, destination station, train runs on mon-tue-...
+    - trainschedules table: on each row - train_number, station_code, arrival_time, departure_time, route_number
+    (changes for only 9 trains when train changes its route, affects distance), distance (of current station from the
+    train's starting station), halt_time_minutes, day_count (increments at the end of day). Got idea of this kind of
+    table from the open government data
+    - stations table: station name and station code (table created just in case more columns are added)
+    - nearby stations table: station1, station2 and distance (between those stations, 30 is the limit). Searching trains
+     from Kalupur station should also show the trains departing from Sabarmati station
+
+    populating_database code doesn't have much of logic other than just using the schedules.json file to populate all
+    the tables in the database. Some logic there for computing the halt time in minutes and logic for populating the
+    nearby stations database with the limit of 30kms.
+
+    In the previous versions of search algorithm, I was using direct connection with database which can be seen in the
+    previous commits. Then transformed code into using direct loaded dataframes as the tables size is not that much
+    compared to the temporary dataframes created during trains searching. I exported all the tables inside Data/database
 
 Search Algorithm:
+    TrainDatabase class whose work is to only communicate with the precomputed tables (before that it was using database
+     connection) is used by TrainsFinder class which is main class whose main function multi_train_itineraries is the
+     only one to be used by the user. Other functions in this class starts with _ or __ or ___ which are internals
+    multi_train_itineraries function for a given date and source and destination stations, finds the best (absolute best
+     in terms of journey time) trains from the source (possibly near to source) station to the destination station
+     (possibly nearby station) on a given date (departure time of train from source will always be greater than
+     current time) with a condition that at most one change of train is permitted
+
+    Algorithm:
+        _trains_halting_nearby: for a given station, the function first finds all the nearby stations and then it finds all
+         the trains that halt on those stations. If same train halts on multiple nearby stations, best nearby station is
+         chosen with least distance. If a date is given (by default not given), then the functions filters the train and
+         keep the trains departing from nearby station on that date only. Note that best near is chosen only after the
+         filtering is done.
+        _add_next_stops: As we want to find a halting station for two train journey, in this function we find all the
+        potential candidates for a halting station and compute dataframe for all pairs of departure station and potential
+        halting station by checking the next stops
+        -add_prev_stops: just like adding next stops, in this function we compute all the pairs of potential halting station
+         and destination station.
+        merge: As we have departing halting pairs and halting arriving pairs, we merge those two dataframes by halting
+         stations and now we have all the true combinations of multi train journey between source and destination
+         station. This merged dataframe size could go up to 10,000 combinations.
+        _add_halt_details: As we have halting station and departure date and time, we compute when will we reach the
+         halting station. After that, we check if the next train we have departs in the next 24 hour time period
+         (fortunately in India we don't need layover of more than 24 hours for trains). If we don't have the next train
+         departure in next 24 hours, we drop those combinations. We then compute the halt departure of the next train
+         and also compute the halt time in minutes using halt departure (second train) and halt arrival (first train)
+        _filter_best_itinerary_for_train_pair: there might be multiple potential halting stations for same combination
+         of trains. For example, say train-1 and train-2 are to be used for our journey. Both train-1 and train-2 have
+         halt-1 and halt-2 stations each. Thus both entry will be there in our dataframe. We only keep the one which
+         gives us maximum halt time as the journey time would still be same and more halt time means more convenience.
+        _filter_by_current_date: Nothing much. Just check the current date and time and filter the trains that departs
+         before the current date and time.
+        _add_more_travel_info: Nothing much. Just computing the reaching date and time; computing journey time minutes
+        sort: by the journey time. Least journey time, best combination
+        separate: our dataframe will also have train-1 = train-2. Those are direct trains and separate them
+        filter: indirect trains might have values in thousands. We only limit to 100. User will always find their
+         best journey in top 100 combinations (even top 10 is ok)
+
+    The performance of the algorithm was improved from 4 seconds all the way to 575ms which can be seen from previous
+     commits and in the performance directory of the search algorithm. Call graph of function there for better
+     understanding.
+
+    The algorithm is well checked for direct trains on IRCTC and gives the same numbers and same trains as the search on
+     IRCTC and thus we have successfully replicated that search along with a new functionality of indirect trains that
+     could also potentially provide very high quality journey time as indirect trains.
+    For example Mumbai Delhi trains in the numbers of 13-14 trains if we search on IRCTC. Same number of direct trains
+     in my algorithm along with 100 indirect trains from mumbai to delhi with one halting station. These are the best 13
+     journey times for direct and indirect trains between mumbai-delhi: [932, 993, 1015, 1075, 1105, 1105, 1145, 1338,
+     1395, 1495, 1550, 1585, 1690] and [1003, 1007, 1052, 1065, 1072, 1078, 1080, 1082, 1082, 1095, 1107, 1108, 1120]
+    This functionality is not provided by IRCTC and search results of google maps and other providers are not good.
+
+Processing:
+    Aim of this folder is to make the data ready for modelling so that we can also concatenate the estimated
+    prices along with our train search. Assume the model as black box which has inputs as train number, from station, to
+    station and class code and the output should be a good estimate of the price to book the ticket.
+
+    analysing precomputing fares: (keeping aside the availability)
+        Coming to the prices and availability json file, we can see that there are lot of different kinds of fares and
+        taxes that depend on variety of factors such as stations, train speed, caterings, train quality, distance,
+        duration, class, quota, etc. One by one fares are analyzed in the jupyter notebook.
+
+        First I saw that totalFare is the almost total of all the other fares.
+        Some of the fares like fuel charge, concession, tatkal, other fares are irrelevant for our case
+        Reservation charge was only dependant on the class. Like 1A had the highest followed by 2A, ...
+            So I precomputed the fares and saved those in a file and subtracted from the total fare for the betterment
+            of the model.
+        The base fare I don't know what it is and highly independent of everything so kept it as it is in the total
+        Superfast charge was again fixed for a combination train and class. so precomputed that as well for the
+            bettrement of the model.
+        Catering charge was again highly varying, not depending on the easy variables like distance or duration but
+         difficult to handle and depended on arrival and departure times of train (because IRCTC proivdes food on fixed
+         4 times in day) So to simplify, I just created a column for model to know if the train provides catering or not
+         . This would affect accuracy but keep the model simple. Saving those catering trains to use during model
+         invocation
+        Dynamic Fares: Some of the premium trains like vande bharat, shatabdi, rajdhani, tejas have concept of dynamic
+         fares which depend on date difference between search and departure date. Difficult to handle again so created
+         one more column for model to know if the train is premium.
+
+        These precomputation requires more data collection of all the available classes for a train (get_train_classes
+        .py) followed by collection of superfast charges, catering trains and dynamic trains (get_sup_dynamic_trains.py)
+
+    data_ready_for_model
+        Now we have some breakdown of the total fare but we have still not used the from and to stations. We have only
+        used train number to determine the dynamic_fare, superfast charge and catering information. We use station codes
+        along with train number to determine distance and duration which are the most imporant factors for model
+        prediction.
+
+        We use distance_map variable which is similar to prefix sum. It is a dictionary of keys as tuple of train_number
+        and station_code and values as tuple of distance and duration. As the stations change for a train, we increase
+        the distance and duration using the schedules.json file and precompute the distance_map. This is also saved for
+        model invocation.
+
+        This file also one hot encodes the class variable as model can't understand categorical classes.
+
+Modelling:
+    As we have dataset of inputs and output ready, we try different machine learning model for price prediction. We used
+     models like LR, DTR, RFR, GBR, NN, SVR. We also tried different methods for balancing the dataset like
+     undersampling and oversampling as the data was highly imbalanced towards sleeper classes and also imbalanced
+     towards lower prices. We run these models on different hyperparameters and tuned them using randomized search CV
+     and for better testing purposes, we used K fold cross validation on 3 folds (as we had a lot of data) We found out
+     that DTR, GBR and NN models were outperforming the other ones with more than 99.5% accuracy. Though GBR and NN gave
+      slightly better performance, I decided to go on with DTR due to simplicity and less invocation time of the model.
+      Comparison of accuracies are there in the plots directory. For further analysis, I tried masking different
+      features, compared advantages of precompuation of the fares. I found out that the DTR model with price balanced
+      dataset gave the highest performance (.9966). DTR is saved with hyperparameter max_depth=20
+
+   All the models are saved in trained_models directory and next step is coded such a way that used models for price
+   prediction can be changed by just one line of code.
+
+Combining:
+
 
