@@ -2,17 +2,15 @@ import requests
 
 class IRCTCClient:
     HEADERS = {
-        "sec-ch-ua": '"Microsoft Edge";v="119", "Chromium";v="119", "Not?A_Brand";v="24"',
-        "sec-ch-ua-mobile": "?0",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0",
-        "greq": "1699379359431",
-        "Content-Type": "application/json; charset=UTF-8",
-        "Content-Language": "en",
-        "Accept": "application/json, text/plain, */*",
+        "accept": "application/json, text/plain, */*",
         "bmirak": "webbm",
-        "Referer": "https://www.irctc.co.in/nget/booking/train-list",
         "bmiyek": "2482A1E7A31DD4535864E31966B58B93",
-        "sec-ch-ua-platform": '"Windows"'
+        "content-language": "en",
+        "content-type": "application/json; charset=UTF-8",
+        "greq": "DM01AP04MS3:23deded6-f0ad-4f8a-ba1b-0445bcbf2e22",
+        "sec-ch-ua": "\"Microsoft Edge\";v=\"119\", \"Chromium\";v=\"119\", \"Not?A_Brand\";v=\"24\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"Windows\""
     }
 
     def send_post_request(self, url, data):
@@ -124,10 +122,9 @@ class TrainScheduleClient:
     def get(self, train_number):
         return self.request_wrapper(train_number)
 
-
 def main():
     irctc_client = IRCTCClient()
     irctc_train_list_client = TrainListClient(irctc_client)
     irctc_price_client = TrainPriceAndAvailClient(irctc_client)
-    print(irctc_train_list_client.get("ADI", "BRC", "20230921", "GN"))
+    print(irctc_train_list_client.get("ADI", "BRC", "20231121", "GN"))
     print(irctc_price_client.get("20902", "20230921", "ADI", "BRC", "CC", "GN"))

@@ -1,5 +1,5 @@
 import numpy as np
-from datetime import date
+from datetime import date, datetime
 import pandas as pd
 from sqlalchemy import create_engine
 from urllib.parse import quote_plus
@@ -146,6 +146,14 @@ class TrainsFinder:
         ).dt.total_seconds() / 60
         return trains_df
 
+    def _filter_by_current_date(self, trains_df, dt):
+        curr_datetime = datetime.now()
+        if curr_datetime.date()>dt:
+            return pd.DataFrame(columns=trains_df.columns)
+        if curr_datetime.date()==dt:
+            return trains_df[trains_df.departure_time_x_x>curr_datetime.time()].reset_index(drop=True)
+        return trains_df
+
     def format_time_columns(self, trains_df, dep_date):
         trains_df.reset_index(drop=True, inplace=True)
         trains_df['fromArrival']=pd.to_datetime(pd.Series([dep_date] * len(trains_df))) + \
@@ -157,9 +165,9 @@ class TrainsFinder:
         trains_df['haltDeparture']=pd.to_datetime(trains_df.halt_departure) + \
                                  pd.to_timedelta(trains_df.departure_time_y_y.astype(str))
         trains_df['toArrival']=pd.to_datetime(trains_df['reach_date']) + \
-                               pd.to_timedelta(trains_df.arrival_time_y_x.astype(str))
+                               pd.to_timedelta(trains_df.arrival_time_x_y.astype(str))
         trains_df['toDeparture']=pd.to_datetime(trains_df.reach_date) + \
-                                 pd.to_timedelta(trains_df.departure_time_y_x.astype(str), errors='coerce')
+                                 pd.to_timedelta(trains_df.departure_time_x_y.astype(str), errors='coerce')
         return trains_df
 
     def format_direct(self, direct_trains, dep_date):
@@ -188,6 +196,7 @@ class TrainsFinder:
 
         trains_df = self._add_halt_details(trains_df, dt)
         trains_df = self._filter_best_itinerary_for_train_pair(trains_df)
+        trains_df = self._filter_by_current_date(trains_df, dt)
         trains_df = self._add_more_travel_info(trains_df, dt)
         trains_df.sort_values('journey_time_minutes', inplace=True)
 
@@ -198,11 +207,12 @@ class TrainsFinder:
 def main():
     source_station = 'MMCT'
     destination_station = 'NDLS'
-    dt = date(2023, 11, 9)
+    dt = date(2023, 11, 11)
 
     # Initialize the TrainsFinder with your database URL
-    database_url = "postgresql://postgres:%s@localhost:5432/traintripper" % quote_plus(config("POSTGRES_PASSWORD"))
-    planner = TrainsFinder(database_url)
+    planner = TrainsFinder(
+        "postgresql://postgres:%s@localhost:5432/traintripper" % quote_plus(config("POSTGRES_PASSWORD"))
+    )
     direct_trains, indirect_trains = planner.multi_train_itineraries(source_station, destination_station, dt)
 
 if __name__ == "__main__":
