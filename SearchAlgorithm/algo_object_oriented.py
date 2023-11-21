@@ -1,14 +1,10 @@
 import numpy as np
 from datetime import date, datetime
 import pandas as pd
-from pycallgraph2 import PyCallGraph
-from pycallgraph2.output import GraphvizOutput
-
-base_path = '..'
 
 class TrainDatabase:
-    def __init__(self):
-        self.trainschedules = pd.read_csv(f"{base_path}/Data/database/traintripper_trainschedules.csv")
+    def __init__(self, base_path):
+        self.trainschedules = pd.read_csv(f"{base_path}/Data/database/traintripper_trainschedules.csv",)
         self.trains = pd.read_csv(f"{base_path}/Data/database/traintripper_trains.csv")
         self.nearbystations = pd.read_csv(f"{base_path}/Data/database/traintripper_nearbystations.csv")
         self.stations = pd.read_csv(f"{base_path}/Data/database/traintripper_stations.csv")
@@ -28,8 +24,8 @@ class TrainDatabase:
         return self.nearbystations[self.nearbystations.station1==station][['station2', 'distance']].reset_index(drop=True)
 
 class TrainsFinder:
-    def __init__(self):
-        self.db = TrainDatabase()
+    def __init__(self, base_path):
+        self.db = TrainDatabase(base_path)
 
     def ___if_train_dep_on_date(self, trains_df, train_num_name, date_series):
         schedules_df = self.db.fetch_train_info(trains_df[train_num_name].to_list())
@@ -90,27 +86,25 @@ class TrainsFinder:
         trains_df['halt_arrival'] = pd.to_datetime(pd.Series([dt]*len(trains_df))) + \
             pd.to_timedelta(trains_df['day_count_y_x'] - trains_df['day_count_x_x'], unit='D')
         trains_df = self.__add_halt_dep_filter_gt1day_layover(trains_df)
-        trains_df['halt_time_minutes'] = (
+        trains_df['halt_time'] = (
             (pd.to_datetime(trains_df['halt_departure']) +
                 pd.to_timedelta(trains_df['departure_time_y_y'].astype(str))) -
             (pd.to_datetime(trains_df['halt_arrival']) +
-                pd.to_timedelta(trains_df['arrival_time_y_x'].astype(str)))
-        ).dt.total_seconds() / 60
+                pd.to_timedelta(trains_df['arrival_time_y_x'].astype(str))))
         return trains_df
 
     def _filter_best_itinerary_for_train_pair(self, trains_df):
-        trains_df.sort_values('halt_time_minutes', ascending=False, inplace=True)
+        trains_df.sort_values('halt_time', ascending=False, inplace=True)
         return trains_df.drop_duplicates(subset=['train_number_x', 'train_number_y']).reset_index(drop=True)
 
     def _add_more_travel_info(self, trains_df, dt):
         trains_df['reach_date'] = pd.to_datetime(trains_df['halt_departure']) + \
             pd.to_timedelta(trains_df['day_count_x_y'] - trains_df['day_count_y_y'], unit='D')
-        trains_df['journey_time_minutes'] = (
+        trains_df['journey_time'] = (
             (pd.to_datetime(trains_df['reach_date']) +
                 pd.to_timedelta(trains_df['arrival_time_x_y'].astype(str))) -
             (pd.to_datetime(pd.Series([dt]*len(trains_df))) +
-                pd.to_timedelta(trains_df['departure_time_x_x'].astype(str)))
-        ).dt.total_seconds() / 60
+                pd.to_timedelta(trains_df['departure_time_x_x'].astype(str))))
         return trains_df
 
     def _filter_by_current_date(self, trains_df, dt):
@@ -118,7 +112,7 @@ class TrainsFinder:
         if curr_datetime.date()>dt:
             return pd.DataFrame(columns=trains_df.columns)
         if curr_datetime.date()==dt:
-            return trains_df[trains_df.departure_time_x_x>curr_datetime.time()].reset_index(drop=True)
+            return trains_df[trains_df.departure_time_x_x>curr_datetime.time().strftime("%H:%M:%S")].reset_index(drop=True)
         return trains_df
 
     def __format_time_columns(self, trains_df, dep_date):
@@ -142,15 +136,15 @@ class TrainsFinder:
         direct_trains.rename({'station_code_x_x': 'fromStnCode', 'train_number_x': 'trainNumber',
                               'station_code_x_y': 'toStnCode'}, axis=1, inplace=True)
         return direct_trains[['fromStnCode', 'fromArrival', 'fromDeparture', 'trainNumber', 'toStnCode',
-                              'toArrival', 'toDeparture', 'journey_time_minutes']].head(100)
+                              'toArrival', 'toDeparture', 'journey_time']].head(100)
 
     def _format_indirect(self, indirect_trains, dep_date):
         indirect_trains = self.__format_time_columns(indirect_trains, dep_date)
         indirect_trains.rename({'station_code_x_x': 'fromStnCode', 'train_number_x': 'trainNumber1', 'train_number_y':
             'trainNumber2', 'station_code_y': 'haltStation', 'station_code_x_y': 'toStnCode'}, axis=1, inplace=True)
         return indirect_trains[['fromStnCode', 'fromArrival', 'fromDeparture', 'trainNumber1', 'haltStation',
-                                'haltArrival', 'trainNumber2', 'haltDeparture', 'halt_time_minutes', 'toStnCode',
-                                'toArrival', 'toDeparture', 'journey_time_minutes']].head(100)
+                                'haltArrival', 'trainNumber2', 'haltDeparture', 'halt_time', 'toStnCode',
+                                'toArrival', 'toDeparture', 'journey_time']].head(100)
 
     def multi_train_itineraries(self, source_station, destination_station, dt):
         best_halting_on_date_source = self._trains_halting_on_nearby(source_station, dt)
@@ -165,19 +159,12 @@ class TrainsFinder:
         trains_df = self._filter_best_itinerary_for_train_pair(trains_df)
         trains_df = self._filter_by_current_date(trains_df, dt)
         trains_df = self._add_more_travel_info(trains_df, dt)
-        trains_df.sort_values('journey_time_minutes', inplace=True)
+        trains_df.sort_values('journey_time', inplace=True)
 
         direct_trains = trains_df[trains_df.train_number_x == trains_df.train_number_y]
         indirect_trains = trains_df[trains_df.train_number_x != trains_df.train_number_y]
         return (self._format_direct(direct_trains, dt), self._format_indirect(indirect_trains, dt))
 
 def main():
-    source_station = 'MMCT'
-    destination_station = 'NDLS'
-    dt = date(2023, 11, 20)
-
-    planner = TrainsFinder()
-    # graphviz = GraphvizOutput()
-    # graphviz.output_file = 'callgraph.png'
-    # with PyCallGraph(output=graphviz):
-    direct_trains, indirect_trains = planner.multi_train_itineraries(source_station, destination_station, dt)
+    planner = TrainsFinder('..')
+    direct_trains, indirect_trains = planner.multi_train_itineraries("MMCT", "NDLS", date(2023, 11, 21))

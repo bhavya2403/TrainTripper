@@ -181,9 +181,52 @@ Modelling:
       features, compared advantages of precompuation of the fares. I found out that the DTR model with price balanced
       dataset gave the highest performance (.9966). DTR is saved with hyperparameter max_depth=20
 
+    We also tried different combinations of artificial neural network models with different hidden layers, number of
+    neurons, optimizers, activation functions and on entire dataset, tuned the hyperparameters with 10 epochs. After
+    finding the best hyperparameters in our case, we applied the model with high epochs and plot the change of training
+    and validation loss and accuracies. We found out that the model doesn't perform better compared to simple machine
+    learning models and accuracy is 93.78% only compared to 99.66% of the most optimized decision tree.
+
    All the models are saved in trained_models directory and next step is coded such a way that used models for price
    prediction can be changed by just one line of code.
 
-Combining:
+Combined:
 
+    In the combining step, we use the coded search algorithm class and prebuilt model together to generate a nice output
+     of possible trains along with their estimated prices. We also use the precomputed data of fixed prices and train
+     specialities during the invocation of the model.
 
+    DataPipeline class's job is to provide a funaction called send_input (to pipeline) which when given a dataframe with
+    trainNumber, fromStnCode, toStnCode and depending on the user class preference it concatenates new columns and
+    trasforms existing columns such a way that the output is feed-able to the model. As every single model takes same
+    input, it makes very easy to switch between models.
+
+        add_class function will use available classes in a train and depending on user preference it would add the
+         best class suitable for user for given train. Also adds class dummies
+        add_dynamic_fare will add 2 boolean columns: if the train uses dynamic fares or not and if the train provides
+         catering or not. These trains are generally costlier.
+        add_distance_duration will use the distance map (mentioned earlier) to compute the distance in kms and time
+         taken in minutes for the train to run between fromStnCode and toStnCode
+
+        send_output: As the model is built after subtracting the effect of fixed charges, those fixed charges must be
+         added to the prediction of the model to compute final fare. This function does the job of output pipeline.
+         These fixed charges are reservation charge and superfast charges
+
+    TripPlannerWithPrices class is our project's final class that would only be used by the user. The main query
+    function would take user input of form station, to station and date; it would use the TrainsFinder class to search
+    direct and indirect trains from the user, use DataPipeline to transform the output of TrainsFinder class to be fed
+    in the model, use prebuilt model to predict the prices and use send_output function of DataPipeline to compute final
+    fares
+
+        get_basic_df_direct and get_basic_df_indirect functions will take data output from TrainsFinder's
+         multi_train_itineraries function and separate the data of only trainnumbers, from and to station codes from the
+         other data of arrival departure times and halting details. Keeps the only things that model precomputation
+         requires.
+        format_predictions function is used to compute final remove unnecessary columns from predictions
+         set_prices_direct and set_prices_indirect will use the predictions of the model to set prices for direct trains
+         and calculate sum of two individual train prices for indirect trains. Functions also set the best class
+         available according to user preference for which the price is displayed.
+
+    After doing some optimizations which can be seen in the previous github commits like adding the class preference of
+    the user before the predictions and other minor changes like doing vectorized operations, I brought down the final
+    query time from 1200 milliseconds to around 700-800ms.
