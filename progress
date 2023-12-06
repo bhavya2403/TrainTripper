@@ -115,7 +115,8 @@ Search Algorithm:
 
     The performance of the algorithm was improved from 4 seconds all the way to 575ms which can be seen from previous
      commits and in the performance directory of the search algorithm. Call graph of function there for better
-     understanding.
+     understanding. Algorithm is written such a way that even though there are very complex interactions with the data,
+     iteration on the data is never used and the handling is only done through the vectorization operations of pandas
 
     The algorithm is well checked for direct trains on IRCTC and gives the same numbers and same trains as the search on
      IRCTC and thus we have successfully replicated that search along with a new functionality of indirect trains that
@@ -177,9 +178,10 @@ Modelling:
      and for better testing purposes, we used K fold cross validation on 3 folds (as we had a lot of data) We found out
      that DTR, GBR and NN models were outperforming the other ones with more than 99.5% accuracy. Though GBR and NN gave
       slightly better performance, I decided to go on with DTR due to simplicity and less invocation time of the model.
-      Comparison of accuracies are there in the plots directory. For further analysis, I tried masking different
-      features, compared advantages of precompuation of the fares. I found out that the DTR model with price balanced
-      dataset gave the highest performance (.9966). DTR is saved with hyperparameter max_depth=20
+      Comparison of model accuracies are there in the plots directory. I tried different combination of
+      important hyperparameters like max_depth and max_samples_leaf for optimization. For further analysis, I tried masking
+      different features, compared advantages of precompuation of the fares. I found out that the DTR model with price
+      balanced dataset gave the highest performance (.9966). DTR is saved with hyperparameter max_depth=20
 
     We also tried different combinations of artificial neural network models with different hidden layers, number of
     neurons, optimizers, activation functions and on entire dataset, tuned the hyperparameters with 10 epochs. After
@@ -189,6 +191,8 @@ Modelling:
 
    All the models are saved in trained_models directory and next step is coded such a way that used models for price
    prediction can be changed by just one line of code.
+
+  Cross-validation: By splitting the data into training and testing sets multiple times, cross-validation can help identify if a model is 	overfitting or underfitting and can be used to tune hyperparameters to reduce variance. (https://www.geeksforgeeks.org/bias-vs-variance-in-machine-learning/)
 
 Combined:
 

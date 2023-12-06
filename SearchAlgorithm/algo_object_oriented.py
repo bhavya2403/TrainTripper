@@ -136,7 +136,7 @@ class TrainsFinder:
         direct_trains.rename({'station_code_x_x': 'fromStnCode', 'train_number_x': 'trainNumber',
                               'station_code_x_y': 'toStnCode'}, axis=1, inplace=True)
         return direct_trains[['fromStnCode', 'fromArrival', 'fromDeparture', 'trainNumber', 'toStnCode',
-                              'toArrival', 'toDeparture', 'journey_time']].head(100)
+                              'toArrival', 'toDeparture', 'journey_time']]
 
     def _format_indirect(self, indirect_trains, dep_date):
         indirect_trains = self.__format_time_columns(indirect_trains, dep_date)
@@ -144,7 +144,7 @@ class TrainsFinder:
             'trainNumber2', 'station_code_y': 'haltStation', 'station_code_x_y': 'toStnCode'}, axis=1, inplace=True)
         return indirect_trains[['fromStnCode', 'fromArrival', 'fromDeparture', 'trainNumber1', 'haltStation',
                                 'haltArrival', 'trainNumber2', 'haltDeparture', 'halt_time', 'toStnCode',
-                                'toArrival', 'toDeparture', 'journey_time']].head(100)
+                                'toArrival', 'toDeparture', 'journey_time']]
 
     def multi_train_itineraries(self, source_station, destination_station, dt):
         best_halting_on_date_source = self._trains_halting_on_nearby(source_station, dt)

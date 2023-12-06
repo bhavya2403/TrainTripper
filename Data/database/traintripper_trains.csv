@@ -2171,7 +2171,7 @@ train_number,train_name,station_from,station_to,trainrunsonmon,trainrunsontue,tr
 17482,TPTY BSP EXP,TPTY,BSP,false,false,false,true,false,false,true
 17487,TIRUMALA EXP,HX,VSKP,true,true,true,true,true,true,true
 17488,TIRUMALA EXP,VSKP,HX,true,true,true,true,true,true,true
-17603,KCG YNK EXP,KCG,YNK,true,true,true,true,true,true,true
+17603,KCG YNK EXP,KCG,YNK,false,true,true,false,true,false,true
 17604,YNK KCG EXP,YNK,KCG,true,true,true,true,true,true,true
 17609,PNBE PAU EXP,PNBE,PAU,false,false,false,false,false,true,false
 17610,PAU PNBE EXP,PAU,PNBE,false,false,false,true,false,false,false
