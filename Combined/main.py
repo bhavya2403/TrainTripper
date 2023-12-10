@@ -114,7 +114,7 @@ class TripPlannerWithPrices:
 def main():
     class_preference = ['SL', '3A', '2A', '1A', '2S', 'CC']
     planner = TripPlannerWithPrices('..', "decision_tree_regression_balanced_price", class_preference)
-    direct_trains, indirect_trains = planner.query("KCG", "MAO", date(2023, 12, 8))
+    direct_trains, indirect_trains = planner.query("MMCT", "NDLS", date(2023, 12, 13))
     direct_trains.to_csv("direct_trains.csv", index=False)
     indirect_trains.to_csv("indirect_trains.csv", index=False)
 main()

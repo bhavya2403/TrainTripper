@@ -33,6 +33,9 @@ create table stations (
     station_name varchar(50)
 );
 
+alter table nearbystations add foreign key (station1) references stations(station_code);
+alter table nearbystations add foreign key (station2) references stations(station_code);
+
 alter table trainschedules add foreign key (station_code) references stations(station_code);
 
 -- if at least one train runs between stations taking less than 1hr time
