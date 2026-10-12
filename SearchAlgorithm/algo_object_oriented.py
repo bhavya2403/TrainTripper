@@ -43,7 +43,8 @@ class TrainsFinder:
     def __filter_best_near_for_train(self, trains_df, station):
         nearby_station_dist = self.db.fetch_nearby_stations(station)
         trains_with_station_dist = trains_df.merge(nearby_station_dist, 'left', left_on='station_code', right_on='station2')
-        trains_with_station_dist.sort_values(['distance_y'], inplace=True)
+        # stable sort + station code tie-break so equally near stations resolve the same way on every pandas version
+        trains_with_station_dist.sort_values(['distance_y', 'station_code'], kind='stable', inplace=True)
         trains_with_station_dist.drop_duplicates(subset='train_number', inplace=True)
         return trains_with_station_dist.drop(['station2', 'distance_y'], axis=1)
 
@@ -94,7 +95,8 @@ class TrainsFinder:
         return trains_df
 
     def _filter_best_itinerary_for_train_pair(self, trains_df):
-        trains_df.sort_values('halt_time', ascending=False, inplace=True)
+        trains_df.sort_values(['halt_time', 'station_code_x_x', 'station_code_y', 'station_code_x_y'],
+                              ascending=[False, True, True, True], kind='stable', inplace=True)
         return trains_df.drop_duplicates(subset=['train_number_x', 'train_number_y']).reset_index(drop=True)
 
     def _add_more_travel_info(self, trains_df, dt):
@@ -159,10 +161,10 @@ class TrainsFinder:
         trains_df = self._filter_best_itinerary_for_train_pair(trains_df)
         trains_df = self._filter_by_current_date(trains_df, dt)
         trains_df = self._add_more_travel_info(trains_df, dt)
-        trains_df.sort_values('journey_time', inplace=True)
+        trains_df.sort_values('journey_time', kind='stable', inplace=True)
 
-        direct_trains = trains_df[trains_df.train_number_x == trains_df.train_number_y]
-        indirect_trains = trains_df[trains_df.train_number_x != trains_df.train_number_y]
+        direct_trains = trains_df[trains_df.train_number_x == trains_df.train_number_y].copy()
+        indirect_trains = trains_df[trains_df.train_number_x != trains_df.train_number_y].copy()
         return (self._format_direct(direct_trains, dt), self._format_indirect(indirect_trains, dt))
 
 def main():
