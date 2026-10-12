@@ -165,6 +165,143 @@ class TrainPriceAndAvailClient:
             self.request_wrapper(train_number, date, source_station, destination_station, class_code, quota_code))
 
 
+class BulkAvailabilityClient:
+    # availability and fare of many legs (train, from, to, date, classes), mixed station pairs allowed, in one
+    # request: what IRCTC's train list uses to fill itself in. IRCTC answers 403 for much more than ~25 legs
+    BASE_URL = "https://www.irctc.co.in/eticketing/protected/mapps1/allLapAvlEnq"
+    MAX_LEGS = 20
+    irctcClient: IRCTCClient
+
+    def __init__(self, irctcClient: IRCTCClient):
+        self.irctcClient = irctcClient
+
+    def request_wrapper(self, legs, quota_code):
+        data = {"alternateAvlInputDTO": [{
+            "trainNo": train_number,
+            "destStn": destination_station,
+            "srcStn": source_station,
+            "ftBooking": False,
+            "jrnyDate": date,
+            "quotaCode": quota_code,
+            "concessionPassengers": False,
+            "avlClasses": class_codes
+        } for train_number, source_station, destination_station, date, class_codes in legs]}
+        return self.irctcClient.send_post_request(self.BASE_URL, data)
+
+    @staticmethod
+    def as_list(value):
+        return value if isinstance(value, list) else [] if value is None else [value]
+
+    def filter_data(self, responseJson, legs):
+        """per leg, {class_code: what TrainPriceAndAvailClient.get() returns for it}, or None where IRCTC's answer
+        has nothing for the leg"""
+        answers = {}
+        for train in self.as_list(responseJson.get("trainBtwnStnsList")):
+            classes = {}
+            for dto in self.as_list(train.get("classAvlDTO")):
+                if "errorMessage" in dto:
+                    classes[dto.get("enqClass")] = {"errorMessage": str(dto["errorMessage"]).strip()}
+                else:
+                    classes[dto.get("enqClass")] = {
+                        **{k: v for k, v in dto.items() if k in TrainPriceAndAvailClient.KEEP_LIST},
+                        "availability": list(map(TrainPriceAndAvailClient.filter_day, self.as_list(dto.get("avlDayList"))))}
+            if classes:
+                answers[(train.get("trainNumber"), train.get("fromStnCode"), train.get("toStnCode"),
+                         str(train.get("journeyDate"))[:10].replace("-", ""))] = classes
+        return [answers.get((train_number, source_station, destination_station, date))
+                for train_number, source_station, destination_station, date, _ in legs]
+
+    def get(self, legs, quota_code="GN"):
+        """legs: up to MAX_LEGS of (5-digit train number, from, to, yyyymmdd boarding date, [class codes])"""
+        return self.filter_data(self.request_wrapper(legs, quota_code), legs)
+
+
+class WaitlistPredictionClient:
+    # IRCTC's "confirmation chance" for a waitlisted status, as the train list shows it. IRCTC only answers a logged-in
+    # user (anonymous requests get "Please verify your mobile number..."), so this sends that user's session headers,
+    # taken from any request the browser made while logged in (devtools > Network > Copy as cURL)
+    BASE_URL = "https://www.irctc.co.in/eticketing/protected/mapps1/predictCnfChance"
+    SESSION_HEADERS = ("authorization", "greq", "bmiyek")
+    # the prediction service still knows the Mumbai terminals by their old codes, like the website sends them
+    OLD_CODES = {"MMCT": "BCT", "CSMT": "CSTM"}
+    irctcClient: IRCTCClient
+
+    def __init__(self, irctcClient: IRCTCClient, session_headers, sample_request=None):
+        self.irctcClient = irctcClient
+        self.session_headers = {**session_headers, "referer": "https://www.irctc.co.in/nget/booking/train-list"}
+        # a prediction request the browser itself sent, replayed by check_session()
+        self.sample_request = sample_request
+
+    @classmethod
+    def from_copied_request(cls, irctcClient, text):
+        # works for "Copy as cURL" (bash or cmd) and "Copy as PowerShell"
+        headers = {}
+        for name, value in re.findall(r"(?i)\b(authorization|greq|bmiyek)[\"'^]*\s*[:=]\s*[\"'^]*([^\"'^\r\n]+)", text):
+            headers.setdefault(name.lower(), value.strip())
+        missing = [name for name in cls.SESSION_HEADERS if not headers.get(name)]
+        if missing:
+            raise ValueError(f"no {', '.join(missing)} header in the copied request; copy one sent while logged in")
+        sample_request = None
+        body = re.search(r"--data-raw\s+\$?'(\{.*?\})'", text)
+        if "predictCnfChance" in text and body:
+            try:
+                sample_request = json.loads(body.group(1))
+            except ValueError:
+                pass
+        return cls(irctcClient, headers, sample_request)
+
+    def check_session(self):
+        """None if the logged-in session still works, else IRCTC's error. Only possible when the copied request was
+        a prediction itself; otherwise assumes the session is fine"""
+        if not self.sample_request:
+            return None
+        response = self.irctcClient.send_post_request(self.BASE_URL, self.sample_request, self.session_headers)
+        return None if response.get("probability") is not None else str(response.get("errorMessage", response))
+
+    @staticmethod
+    def status_code(status):
+        return "W" if "WL" in status else "R" if "RAC" in status else "C" if "CNF" in status else ""
+
+    @staticmethod
+    def status_number(status):
+        return int(re.match(r"\D*(\d*)", status).group(1) or 0)
+
+    def request_wrapper(self, train_number, date, source_station, destination_station, class_code, status, wl_type,
+                        site_id, quota_code):
+        # status is IRCTC's "<booking status>/<current status>", e.g. "RLWL16/WL11"
+        running, _, current = status.partition("/")
+        current = current or running
+        # the website sends a JS Date in UTC; noon IST is the same calendar day in both zones
+        day = datetime.strptime(date, "%Y%m%d").strftime("%Y-%m-%dT06:30:00.000Z")
+        data = {
+            "bookingDate": day,
+            "currentStatus": self.status_code(current),
+            "currentStatusNumber": self.status_number(current),
+            "fromStnCode": self.OLD_CODES.get(source_station, source_station),
+            "journeyClass": class_code,
+            "journeyDate": day,
+            "quota": quota_code,
+            "runningStatus": self.status_code(running),
+            "runningStatusNumber": self.status_number(running),
+            "siteId": site_id,
+            "toStnCode": self.OLD_CODES.get(destination_station, destination_station),
+            "trainNumber": train_number,
+            "wlType": wl_type,
+            "isLogedinReq": False
+        }
+        return self.irctcClient.send_post_request(self.BASE_URL, data, self.session_headers)
+
+    def filter_data(self, responseJson):
+        if responseJson.get("probability") is None:
+            return {"errorMessage": str(responseJson.get("errorMessage", "IRCTC gave no probability")).strip()}
+        return {"probability": float(responseJson["probability"]), "chartStatus": responseJson.get("passengerChartStatus")}
+
+    def get(self, train_number, date, source_station, destination_station, class_code, status, wl_type, site_id,
+            quota_code="GN"):
+        return self.filter_data(self.request_wrapper(train_number, date, source_station, destination_station,
+                                                     class_code, status, wl_type, site_id, quota_code))
+
+
 class TrainScheduleClient:
     BASE_URL = "https://www.irctc.co.in/eticketing/protected/mapps1/trnscheduleenquiry/"
     irctcClient: IRCTCClient

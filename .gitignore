@@ -3,3 +3,4 @@
 .DS_Store
 Data/irctc/static_coverage.csv
 KaggleExport
+.irctc_session*
